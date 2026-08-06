@@ -212,3 +212,71 @@ def test_source_switch_toggles_the_widgets(dialog):
     assert not dialog.cif_widget.isVisibleTo(dialog)
     dialog.source_combo.setCurrentText(SOURCE_CIF)
     assert dialog.cif_widget.isVisibleTo(dialog)
+
+
+# -- drag and drop ----------------------------------------------------------
+
+
+class _FakeUrl:
+    def __init__(self, path):
+        self._path = path
+
+    def toLocalFile(self):
+        return self._path
+
+
+class _FakeMime:
+    def __init__(self, paths):
+        self._urls = [_FakeUrl(p) for p in paths]
+
+    def hasUrls(self):
+        return bool(self._urls)
+
+    def urls(self):
+        return self._urls
+
+
+class _FakeDropEvent:
+    def __init__(self, mime):
+        self._mime = mime
+        self.accepted = False
+        self.ignored = False
+
+    def mimeData(self):
+        return self._mime
+
+    def acceptProposedAction(self):
+        self.accepted = True
+
+    def ignore(self):
+        self.ignored = True
+
+
+def test_dropped_cif_path_picks_the_cif():
+    from slab_builder.main_dialog import dropped_cif_path
+
+    assert dropped_cif_path(_FakeMime(["/tmp/a.txt", "/tmp/b.CIF"])) == "/tmp/b.CIF"
+    assert dropped_cif_path(_FakeMime(["/tmp/c.mmcif"])) == "/tmp/c.mmcif"
+    assert dropped_cif_path(_FakeMime(["/tmp/a.xyz"])) == ""
+    assert dropped_cif_path(None) == ""
+
+
+def test_dropping_a_cif_switches_the_source_over(dialog, tmp_path):
+    path = tmp_path / "dropped.cif"
+    path.write_text(CUBIC_CIF, encoding="utf-8")
+    dialog.source_combo.setCurrentText(SOURCE_VIEWER)
+    event = _FakeDropEvent(_FakeMime([str(path)]))
+    dialog.dropEvent(event)
+    assert event.accepted
+    assert dialog.source_combo.currentText() == SOURCE_CIF
+    assert dialog.cif_edit.text() == str(path)
+
+
+def test_a_drag_without_a_cif_is_refused(dialog):
+    event = _FakeDropEvent(_FakeMime(["/tmp/notes.txt"]))
+    dialog.dragEnterEvent(event)
+    assert event.ignored and not event.accepted
+
+
+def test_the_dialog_accepts_drops(dialog):
+    assert dialog.acceptDrops()
