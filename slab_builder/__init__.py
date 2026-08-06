@@ -13,7 +13,7 @@ PLUGIN_DESCRIPTION = (
 )
 PLUGIN_CATEGORY = "Structure"
 PLUGIN_TAGS = ["Structure", "Utility"]
-PLUGIN_DEPENDENCIES = ["numpy"]
+PLUGIN_DEPENDENCIES = ["numpy", "pyvista", "rdkit"]
 PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=4.0.0, <5.0.0"
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
