@@ -140,6 +140,7 @@ def test_settings_roundtrip(dialog, tmp_path):
         "cif_path": dialog.cif_edit.text(),
         "expand_symmetry": False,
         "primitive_cell": True,
+        "preview_bonds": True,
         "auto_preview_3d": False,
         "miller": [1, 1, 0],
         "miller_four_index": False,
@@ -280,3 +281,46 @@ def test_a_drag_without_a_cif_is_refused(dialog):
 
 def test_the_dialog_accepts_drops(dialog):
     assert dialog.acceptDrops()
+
+
+# -- drag and drop, save and copy -------------------------------------------
+
+
+def test_a_drag_move_follows_the_same_rule(dialog):
+    event = _FakeDropEvent(_FakeMime(["/tmp/x.cif"]))
+    dialog.dragMoveEvent(event)
+    assert event.accepted
+
+
+def test_saving_to_an_unwritable_path_reports_the_error(dialog, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path / "missing" / "s.cif"), "")
+    )
+    seen = []
+    monkeypatch.setattr(QMessageBox, "critical", lambda *a, **k: seen.append(a))
+    dialog.save_cif()
+    assert seen
+
+
+def test_saving_writes_the_cif(dialog, tmp_path, monkeypatch):
+    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+    target = tmp_path / "slab.cif"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    dialog.save_cif()
+    assert "data_" in target.read_text(encoding="utf-8")
+
+
+def test_cancelling_the_save_writes_nothing(dialog, monkeypatch):
+    from PyQt6.QtWidgets import QFileDialog
+
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    dialog.save_cif()
+
+
+def test_copying_the_cif_reaches_the_clipboard(dialog, qapp):
+    dialog.copy_cif()
+    assert "data_" in qapp.clipboard().text()

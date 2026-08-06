@@ -121,6 +121,12 @@ class SlabBuilderDialog(QDialog):
         self.preview_3d_button.clicked.connect(self.preview_in_3d)
         self.clear_preview_button = QPushButton("Clear box")
         self.clear_preview_button.clicked.connect(self.clear_3d_preview)
+        self.bonds_check = QCheckBox("Bonds")
+        self.bonds_check.setToolTip(
+            "Draw bonds inferred from covalent radii.\n"
+            "Off by default: a slab is cut at its surfaces and its side faces, so "
+            "every bond crossing one is missing its partner."
+        )
         self.auto_preview_check = QCheckBox("Show automatically")
         self.auto_preview_check.setChecked(True)
         self.auto_preview_check.setToolTip(
@@ -129,6 +135,7 @@ class SlabBuilderDialog(QDialog):
         )
         preview_layout.addWidget(self.preview_3d_button)
         preview_layout.addWidget(self.clear_preview_button)
+        preview_layout.addWidget(self.bonds_check)
         preview_layout.addWidget(self.auto_preview_check)
         preview_layout.addStretch(1)
         layout.addWidget(preview_row)
@@ -305,6 +312,7 @@ class SlabBuilderDialog(QDialog):
             self.expand_check.setChecked(bool(settings.get("expand_symmetry", True)))
             self.primitive_check.setChecked(bool(settings.get("primitive_cell", False)))
             self.auto_preview_check.setChecked(bool(settings.get("auto_preview_3d", True)))
+            self.bonds_check.setChecked(bool(settings.get("preview_bonds", False)))
             for spin, value in zip(self.miller_spins, settings.get("miller") or [0, 0, 1]):
                 spin.setValue(int(value))
             self.four_index_check.setChecked(bool(settings.get("miller_four_index", False)))
@@ -325,6 +333,7 @@ class SlabBuilderDialog(QDialog):
             "expand_symmetry": self.expand_check.isChecked(),
             "primitive_cell": self.primitive_check.isChecked(),
             "auto_preview_3d": self.auto_preview_check.isChecked(),
+            "preview_bonds": self.bonds_check.isChecked(),
             "miller": [spin.value() for spin in self.miller_spins],
             "miller_four_index": self.four_index_check.isChecked(),
             "layers": self.layers_spin.value(),
@@ -426,13 +435,14 @@ class SlabBuilderDialog(QDialog):
         if cell is None or not self.auto_preview_check.isChecked():
             return
         key = (cell.name, len(cell.atoms), tuple(round(v, 6) for v in cell.lengths),
-               tuple(round(v, 6) for v in cell.angles))
+               tuple(round(v, 6) for v in cell.angles), self.bonds_check.isChecked())
         if key == self._auto_previewed_key:
             return
         self._auto_previewed_key = key
         try:
             self._preview_actors = cell_preview.show_cell(
-                self.context, cell, self._preview_actors
+                self.context, cell, self._preview_actors,
+                show_bonds=self.bonds_check.isChecked(),
             )
         except (ValueError, OSError, AttributeError, ImportError, RuntimeError) as exc:
             logging.debug("Automatic 3D preview skipped: %s", exc)
@@ -442,7 +452,8 @@ class SlabBuilderDialog(QDialog):
         try:
             cell = self._slab if self._slab is not None else self.build_slab()
             self._preview_actors = cell_preview.show_cell(
-                self.context, cell, self._preview_actors
+                self.context, cell, self._preview_actors,
+                show_bonds=self.bonds_check.isChecked(),
             )
         except (ValueError, OSError, AttributeError, ImportError, RuntimeError) as exc:
             QMessageBox.warning(self, "3D preview", str(exc))

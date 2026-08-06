@@ -284,3 +284,39 @@ def test_mirrored_indices_give_the_same_surface_area():
     mirrored = sl.build_slab(cell, (1, -1, 0), layers=2, vacuum=12.0)
     assert sl.surface_area(mirrored) == pytest.approx(sl.surface_area(plain))
     assert len(mirrored.atoms) == len(plain.atoms)
+
+
+# -- failure modes ----------------------------------------------------------
+
+
+def test_a_singular_surface_basis_is_reported():
+    cell = _fcc()
+    with pytest.raises(ValueError, match="singular"):
+        sl._retile(cell, np.array([[1, 0, 0], [2, 0, 0], [0, 0, 1]]))
+
+
+def test_a_degenerate_surface_cell_is_reported(monkeypatch):
+    """Parallel a and b leave no surface normal to stack along."""
+    cell = _fcc()
+    flat = cm.Cell("flat", cell.lengths, cell.angles,
+                   np.array([[1.0, 0, 0], [2.0, 0, 0], [0, 0, 1.0]]), cell.atoms)
+    monkeypatch.setattr(sl, "_retile", lambda *a, **k: flat)
+    with pytest.raises(ValueError, match="degenerate"):
+        sl.build_slab(cell, (0, 0, 1), layers=1, vacuum=5.0)
+
+
+def test_slab_thickness_of_an_empty_cell_is_zero():
+    lattice = cm.cell_vectors((4.0, 4.0, 20.0), (90.0, 90.0, 90.0))
+    empty = cm.Cell("x", (4.0, 4.0, 20.0), (90.0, 90.0, 90.0), lattice, ())
+    assert sl.slab_thickness(empty) == 0.0
+
+
+def test_a_negative_c_axis_still_stacks_upwards():
+    """A cell whose c points against a x b must not build the slab backwards."""
+    cell = _fcc()
+    flipped = cm.Cell(cell.name, cell.lengths, cell.angles,
+                      np.array(cell.lattice) * np.array([1.0, 1.0, -1.0])[:, None],
+                      cell.atoms, source="cif")
+    built = sl.build_slab(flipped, (0, 0, 1), layers=2, vacuum=10.0)
+    assert len(built.atoms) > 0
+
