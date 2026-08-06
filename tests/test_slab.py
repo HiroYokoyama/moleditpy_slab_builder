@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from slab_builder import cell_model as cm  # noqa: E402
 from slab_builder import slab as sl  # noqa: E402
 
-from test_cell_model import CUBIC_CIF  # noqa: E402
+from shared_fixtures import CUBIC_CIF  # noqa: E402
 
 
 @pytest.fixture

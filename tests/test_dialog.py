@@ -16,7 +16,7 @@ from slab_builder.main_dialog import (  # noqa: E402
     default_settings,
 )
 
-from test_cell_model import CUBIC_CIF  # noqa: E402
+from shared_fixtures import CUBIC_CIF  # noqa: E402
 
 
 def _viewer_structure():
