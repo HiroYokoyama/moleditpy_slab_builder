@@ -44,7 +44,6 @@ SOURCE_VIEWER = "CIF Viewer panel (currently loaded)"
 SOURCES = (SOURCE_CIF, SOURCE_VIEWER)
 
 
-
 def default_settings() -> dict:
     return {
         "source": SOURCE_CIF,
