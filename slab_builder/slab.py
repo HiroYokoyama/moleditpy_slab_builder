@@ -92,7 +92,7 @@ def surface_transformation(lattice: np.ndarray, miller: Sequence[int]) -> np.nda
 
     a, b = _ext_gcd(p * k + q * l, h)
     divisor = math.gcd(l, k) or 1
-    return np.array(
+    rows = np.array(
         [
             (p * k + q * l, -p * h, -q * h),
             (0, l // divisor, -k // divisor),
@@ -100,6 +100,13 @@ def surface_transformation(lattice: np.ndarray, miller: Sequence[int]) -> np.nda
         ],
         dtype=int,
     )
+    # The construction gives a negative determinant for roughly half of all
+    # directions, which would hand back a left-handed slab that VASP and pw.x
+    # both refuse.  Swapping the two in-plane rows fixes the handedness and
+    # leaves the surface itself untouched.
+    if np.linalg.det(rows) < 0:
+        rows[[0, 1]] = rows[[1, 0]]
+    return rows
 
 
 def _retile(cell: Cell, transformation: np.ndarray) -> Cell:

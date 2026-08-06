@@ -240,3 +240,47 @@ def test_write_cif_is_p1_with_unique_labels():
     assert "'P 1'" in text
     labels = [line.split()[0] for line in text.splitlines() if line.startswith("  ")]
     assert labels == ["'x,", "O1", "H1", "H2"] or labels[-3:] == ["O1", "H1", "H2"]
+
+
+# -- handedness -------------------------------------------------------------
+
+
+def _fcc(a=3.6):
+    lattice = cm.cell_vectors((a, a, a), (90.0, 90.0, 90.0))
+    fract = [[0, 0, 0], [0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]]
+    atoms = tuple(
+        cm.CellAtom(f"Cu{index + 1}", "Cu", np.array(f, dtype=float),
+                    cm.fractional_to_cartesian(f, lattice), 1.0)
+        for index, f in enumerate(fract)
+    )
+    return cm.Cell("fcc", (a, a, a), (90.0, 90.0, 90.0), lattice, atoms, source="cif")
+
+
+def test_the_surface_basis_is_always_right_handed():
+    """Half of all directions used to give a negative determinant."""
+    cell = _fcc()
+    for h in range(-3, 4):
+        for k in range(-3, 4):
+            for l in range(-3, 4):
+                if (h, k, l) == (0, 0, 0):
+                    continue
+                matrix = sl.surface_transformation(cell.lattice, (h, k, l))
+                assert np.linalg.det(matrix) > 0, (h, k, l)
+
+
+@pytest.mark.parametrize("miller", [(1, -1, 0), (1, 1, -1), (-2, -1, 1)])
+@pytest.mark.parametrize("orthogonal_c", [True, False])
+def test_a_negative_index_slab_keeps_a_positive_cell_volume(miller, orthogonal_c):
+    """VASP and pw.x both refuse a left-handed cell, so one must never be built."""
+    built = sl.build_slab(_fcc(), miller, layers=2, vacuum=12.0, orthogonal_c=orthogonal_c)
+    assert np.linalg.det(built.lattice) > 0
+    assert cm.structure_warnings(built) == []
+
+
+def test_mirrored_indices_give_the_same_surface_area():
+    """Swapping the in-plane rows must not change the surface itself."""
+    cell = _fcc()
+    plain = sl.build_slab(cell, (1, 1, 0), layers=2, vacuum=12.0)
+    mirrored = sl.build_slab(cell, (1, -1, 0), layers=2, vacuum=12.0)
+    assert sl.surface_area(mirrored) == pytest.approx(sl.surface_area(plain))
+    assert len(mirrored.atoms) == len(plain.atoms)
