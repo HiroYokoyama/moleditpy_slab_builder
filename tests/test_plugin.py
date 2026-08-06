@@ -61,7 +61,7 @@ def context():
 
 def test_plugin_metadata():
     assert plugin.PLUGIN_NAME == "Slab Builder"
-    assert plugin.PLUGIN_VERSION == "0.1.2"
+    assert plugin.PLUGIN_VERSION == "0.2.0"
     assert plugin.PLUGIN_AUTHOR == "HiroYokoyama"
     assert plugin.PLUGIN_DEPENDENCIES == ["numpy", "pyvista", "rdkit"]
     assert plugin.PLUGIN_TAGS == ["Structure", "Utility"]
