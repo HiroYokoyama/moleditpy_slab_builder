@@ -140,6 +140,7 @@ def test_settings_roundtrip(dialog, tmp_path):
         "cif_path": dialog.cif_edit.text(),
         "expand_symmetry": False,
         "primitive_cell": True,
+        "auto_preview_3d": False,
         "miller": [1, 1, 0],
         "miller_four_index": False,
         "layers": 4,

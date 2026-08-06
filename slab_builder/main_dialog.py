@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 
 from PyQt6.QtCore import Qt
@@ -78,6 +79,7 @@ class SlabBuilderDialog(QDialog):
         self._updating = False
         self._slab = None
         self._preview_actors = []
+        self._auto_previewed_key = None
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._build_source_box())
@@ -104,8 +106,15 @@ class SlabBuilderDialog(QDialog):
         self.preview_3d_button.clicked.connect(self.preview_in_3d)
         self.clear_preview_button = QPushButton("Clear box")
         self.clear_preview_button.clicked.connect(self.clear_3d_preview)
+        self.auto_preview_check = QCheckBox("Show automatically")
+        self.auto_preview_check.setChecked(True)
+        self.auto_preview_check.setToolTip(
+            "Draw the slab in the 3D view as soon as it changes, so the surface, "
+            "layer count and vacuum can be judged by eye."
+        )
         preview_layout.addWidget(self.preview_3d_button)
         preview_layout.addWidget(self.clear_preview_button)
+        preview_layout.addWidget(self.auto_preview_check)
         preview_layout.addStretch(1)
         layout.addWidget(preview_row)
 
@@ -255,6 +264,7 @@ class SlabBuilderDialog(QDialog):
             self.cif_edit.setText(str(settings.get("cif_path", "") or ""))
             self.expand_check.setChecked(bool(settings.get("expand_symmetry", True)))
             self.primitive_check.setChecked(bool(settings.get("primitive_cell", False)))
+            self.auto_preview_check.setChecked(bool(settings.get("auto_preview_3d", True)))
             for spin, value in zip(self.miller_spins, settings.get("miller") or [0, 0, 1]):
                 spin.setValue(int(value))
             self.four_index_check.setChecked(bool(settings.get("miller_four_index", False)))
@@ -274,6 +284,7 @@ class SlabBuilderDialog(QDialog):
             "cif_path": self.cif_edit.text(),
             "expand_symmetry": self.expand_check.isChecked(),
             "primitive_cell": self.primitive_check.isChecked(),
+            "auto_preview_3d": self.auto_preview_check.isChecked(),
             "miller": [spin.value() for spin in self.miller_spins],
             "miller_four_index": self.four_index_check.isChecked(),
             "layers": self.layers_spin.value(),
@@ -349,6 +360,7 @@ class SlabBuilderDialog(QDialog):
         self.summary_label.setText(self._describe(self._slab))
         self.preview.setPlainText(write_cif(self._slab))
         self.save_button.setEnabled(True)
+        self.auto_preview(self._slab)
 
     def _describe(self, cell) -> str:
         a, b, c = cell.lengths
@@ -363,6 +375,27 @@ class SlabBuilderDialog(QDialog):
         )
 
     # -- output -----------------------------------------------------------
+
+    def auto_preview(self, cell) -> None:
+        """Show a newly built slab without being asked.
+
+        Keyed on the structure, so re-rendering the CIF text or reopening the
+        dialog does not repaint the 3D view, while a different surface, layer
+        count or vacuum does.  Failures stay silent: nothing was clicked.
+        """
+        if cell is None or not self.auto_preview_check.isChecked():
+            return
+        key = (cell.name, len(cell.atoms), tuple(round(v, 6) for v in cell.lengths),
+               tuple(round(v, 6) for v in cell.angles))
+        if key == self._auto_previewed_key:
+            return
+        self._auto_previewed_key = key
+        try:
+            self._preview_actors = cell_preview.show_cell(
+                self.context, cell, self._preview_actors
+            )
+        except (ValueError, OSError, AttributeError, ImportError, RuntimeError) as exc:
+            logging.debug("Automatic 3D preview skipped: %s", exc)
 
     def preview_in_3d(self) -> None:
         """Draw the current slab, box included, in MoleditPy's 3D view."""
