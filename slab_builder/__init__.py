@@ -4,7 +4,7 @@ import logging
 import os
 
 PLUGIN_NAME = "Slab Builder"
-PLUGIN_VERSION = "0.2.0"
+PLUGIN_VERSION = "0.2.1"
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
     "Cut a surface slab from a bulk crystal: (hkl) Miller indices, layer count, "
@@ -33,12 +33,7 @@ current_settings = get_default_settings()
 
 
 def _open_dialog(mw):
-    """Open the dialog.
-
-    Deliberately NOT named ``run``: the host auto-adds a Plugins-menu entry for
-    any module exposing ``run()``, which would duplicate the entry registered in
-    initialize() below.
-    """
+    """Open the dialog."""
     global _dialog_opened
 
     if _context is not None:
@@ -77,6 +72,16 @@ def _open_dialog(mw):
         _context.register_window(WINDOW_ID, dlg)
     dlg.show()
 
+
+
+def run(main_window):
+    """Entry point for the host's automatic Plugins-menu item (manual 7.1).
+
+    Safe alongside the entry registered in initialize(): that one goes to
+    the Structure menu, while a module exposing ``run`` is listed under Plugins, so the
+    two do not collide.
+    """
+    _open_dialog(main_window)
 
 def initialize(context):
     global _context

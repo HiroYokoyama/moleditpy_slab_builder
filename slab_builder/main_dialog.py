@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from . import PLUGIN_NAME, PLUGIN_VERSION
 from . import cell_preview
 from . import slab as slab_module
 from .cell_model import (
@@ -67,7 +68,7 @@ class SlabBuilderDialog(QDialog):
         context=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Slab Builder")
+        self.setWindowTitle(f"{PLUGIN_NAME} v{PLUGIN_VERSION}")
         self.resize(860, 700)
 
         self.persistent_settings = persistent_settings if persistent_settings is not None else {}
