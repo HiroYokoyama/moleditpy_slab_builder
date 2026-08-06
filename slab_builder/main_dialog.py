@@ -43,6 +43,20 @@ SOURCE_CIF = "CIF file"
 SOURCE_VIEWER = "CIF Viewer panel (currently loaded)"
 SOURCES = (SOURCE_CIF, SOURCE_VIEWER)
 
+#: Suffixes accepted by drag and drop.  mmCIF uses .mmcif or .cif alike.
+CIF_SUFFIXES = (".cif", ".mmcif")
+
+
+def dropped_cif_path(mime) -> str:
+    """Local path of the first .cif in a drag, or "" when there is none."""
+    if mime is None or not mime.hasUrls():
+        return ""
+    for url in mime.urls():
+        path = url.toLocalFile()
+        if path and os.path.splitext(path)[1].lower() in CIF_SUFFIXES:
+            return path
+    return ""
+
 
 def default_settings() -> dict:
     return {
@@ -76,6 +90,7 @@ class SlabBuilderDialog(QDialog):
         self.get_cif_viewer = get_cif_viewer
         self.mark_modified = mark_modified
         self.context = context
+        self.setAcceptDrops(True)
         self._updating = False
         self._slab = None
         self._preview_actors = []
@@ -252,6 +267,30 @@ class SlabBuilderDialog(QDialog):
             spin.valueChanged.connect(self.update_preview)
             self.repeat_spins.append(spin)
         return box
+
+    # -- drag and drop ----------------------------------------------------
+
+    def load_cif_path(self, path: str) -> None:
+        """Point the dialog at a CIF, switching the source over to match."""
+        self.source_combo.setCurrentText(SOURCE_CIF)
+        self.cif_edit.setText(str(path))
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        if dropped_cif_path(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        self.dragEnterEvent(event)
+
+    def dropEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        path = dropped_cif_path(event.mimeData())
+        if not path:
+            event.ignore()
+            return
+        self.load_cif_path(path)
+        event.acceptProposedAction()
 
     # -- settings ---------------------------------------------------------
 
