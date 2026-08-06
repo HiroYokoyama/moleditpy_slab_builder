@@ -27,11 +27,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from . import cell_preview
 from . import slab as slab_module
 from .cell_model import (
     cell_from_viewer_structure,
     make_supercell,
     parse_cif_file,
+    primitive_cell,
     write_cif,
 )
 
@@ -62,6 +64,7 @@ class SlabBuilderDialog(QDialog):
         persistent_settings=None,
         get_cif_viewer=None,
         mark_modified=None,
+        context=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("Slab Builder")
@@ -70,8 +73,10 @@ class SlabBuilderDialog(QDialog):
         self.persistent_settings = persistent_settings if persistent_settings is not None else {}
         self.get_cif_viewer = get_cif_viewer
         self.mark_modified = mark_modified
+        self.context = context
         self._updating = False
         self._slab = None
+        self._preview_actors = []
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._build_source_box())
@@ -87,6 +92,21 @@ class SlabBuilderDialog(QDialog):
         self.preview.setReadOnly(True)
         self.preview.setFont(QFont("Courier New", 9))
         layout.addWidget(self.preview, 1)
+
+        preview_row = QWidget()
+        preview_layout = QHBoxLayout(preview_row)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_3d_button = QPushButton("Show in 3D view")
+        self.preview_3d_button.setToolTip(
+            "Draw the slab in MoleditPy's own 3D view, with the cell box."
+        )
+        self.preview_3d_button.clicked.connect(self.preview_in_3d)
+        self.clear_preview_button = QPushButton("Clear box")
+        self.clear_preview_button.clicked.connect(self.clear_3d_preview)
+        preview_layout.addWidget(self.preview_3d_button)
+        preview_layout.addWidget(self.clear_preview_button)
+        preview_layout.addStretch(1)
+        layout.addWidget(preview_row)
 
         buttons = QDialogButtonBox()
         self.save_button = buttons.addButton("Save CIF...", QDialogButtonBox.ButtonRole.AcceptRole)
@@ -136,9 +156,18 @@ class SlabBuilderDialog(QDialog):
         self.expand_check.setChecked(True)
         form.addRow("", self.expand_check)
 
+        self.primitive_check = QCheckBox("Reduce the bulk to its primitive cell")
+        self.primitive_check.setToolTip(
+            "Drops the repeats of a centred lattice before the surface is cut.\n"
+            "WARNING: Miller indices are defined against the cell you cut, so (h k l) "
+            "will then refer to the primitive cell, not the conventional one."
+        )
+        form.addRow("", self.primitive_check)
+
         self.source_combo.currentTextChanged.connect(self._on_source_changed)
         self.cif_edit.textChanged.connect(self.update_preview)
         self.expand_check.toggled.connect(self.update_preview)
+        self.primitive_check.toggled.connect(self.update_preview)
         return box
 
     def _build_slab_box(self) -> QGroupBox:
@@ -224,6 +253,7 @@ class SlabBuilderDialog(QDialog):
                 self.source_combo.setCurrentText(settings["source"])
             self.cif_edit.setText(str(settings.get("cif_path", "") or ""))
             self.expand_check.setChecked(bool(settings.get("expand_symmetry", True)))
+            self.primitive_check.setChecked(bool(settings.get("primitive_cell", False)))
             for spin, value in zip(self.miller_spins, settings.get("miller") or [0, 0, 1]):
                 spin.setValue(int(value))
             self.four_index_check.setChecked(bool(settings.get("miller_four_index", False)))
@@ -242,6 +272,7 @@ class SlabBuilderDialog(QDialog):
             "source": self.source_combo.currentText(),
             "cif_path": self.cif_edit.text(),
             "expand_symmetry": self.expand_check.isChecked(),
+            "primitive_cell": self.primitive_check.isChecked(),
             "miller": [spin.value() for spin in self.miller_spins],
             "miller_four_index": self.four_index_check.isChecked(),
             "layers": self.layers_spin.value(),
@@ -283,6 +314,8 @@ class SlabBuilderDialog(QDialog):
 
     def build_slab(self):
         bulk = self.load_bulk()
+        if self.primitive_check.isChecked():
+            bulk = primitive_cell(bulk)
         built = slab_module.build_slab(
             bulk,
             miller=self.miller(),
@@ -329,6 +362,22 @@ class SlabBuilderDialog(QDialog):
         )
 
     # -- output -----------------------------------------------------------
+
+    def preview_in_3d(self) -> None:
+        """Draw the current slab, box included, in MoleditPy's 3D view."""
+        try:
+            cell = self._slab if self._slab is not None else self.build_slab()
+            self._preview_actors = cell_preview.show_cell(
+                self.context, cell, self._preview_actors
+            )
+        except (ValueError, OSError, AttributeError, ImportError, RuntimeError) as exc:
+            QMessageBox.warning(self, "3D preview", str(exc))
+
+    def clear_3d_preview(self) -> None:
+        """Remove the cell box.  Safe to call when nothing was drawn."""
+        self._preview_actors = cell_preview.clear_cell_box(
+            self.context, self._preview_actors
+        )
 
     def _browse_cif(self) -> None:  # pragma: no cover - file dialog
         path, _ = QFileDialog.getOpenFileName(

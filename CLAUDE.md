@@ -21,8 +21,9 @@ plugins ship independently and cannot import from one another:
 
 | File | `SHARED_MODULE_NAME` | Version | Also in |
 |---|---|---|---|
-| `cell_model.py` | `periodic-cell-model` | 0.6.0 | VASP, Quantum ESPRESSO, CP2K |
+| `cell_model.py` | `periodic-cell-model` | 0.7.0 | VASP, Quantum ESPRESSO, CP2K |
 | `elements.py` | `periodic-elements` | 0.1.0 | VASP, Quantum ESPRESSO, CP2K |
+| `cell_preview.py` | `periodic-cell-preview` | 0.1.0 | VASP, Quantum ESPRESSO, CP2K |
 
 Sibling repositories under `DEV_MAIN/`:
 `moleditpy_vasp_input_generator/vasp_input_generator/`,
@@ -50,7 +51,9 @@ md5sum moleditpy_*/*/cell_model.py    # every hash must match
 ```
 
 `cell_model.py` imports `elements.py` for its element-symbol table, so the two
-always travel together. This repository has no `structure_panel.py`; it reaches
+always travel together.  `cell_preview.py` imports RDKit and reaches the host's
+PyVista plotter, but only inside its functions, so the plugin's declared
+dependencies stay `numpy` alone. This repository has no `structure_panel.py`; it reaches
 the CIF Viewer through its own `cif_viewer_link.py`.
 
 ## Testing

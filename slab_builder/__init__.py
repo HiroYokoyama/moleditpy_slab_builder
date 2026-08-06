@@ -71,6 +71,7 @@ def _open_dialog(mw):
         persistent_settings=current_settings,
         get_cif_viewer=_get_cif_viewer,
         mark_modified=_mark_modified,
+        context=_context,
     )
     if _context is not None:
         _context.register_window(WINDOW_ID, dlg)
