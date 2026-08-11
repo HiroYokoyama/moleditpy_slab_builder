@@ -4,7 +4,7 @@ import logging
 import os
 
 PLUGIN_NAME = "Slab Builder"
-PLUGIN_VERSION = "0.4.2"
+PLUGIN_VERSION = "0.4.3"
 PLUGIN_AUTHOR = "HiroYokoyama"
 PLUGIN_DESCRIPTION = (
     "Cut a surface slab from a bulk crystal: (hkl) Miller indices, layer count, "
