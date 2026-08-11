@@ -11,8 +11,8 @@ PLUGIN_DESCRIPTION = (
     "vacuum thickness and termination, written back out as a CIF for any "
     "periodic input generator."
 )
-PLUGIN_CATEGORY = "Structure"
-PLUGIN_TAGS = ["Structure", "Utility"]
+PLUGIN_CATEGORY = "Utility"
+PLUGIN_TAGS = ["Utility"]
 PLUGIN_DEPENDENCIES = ["numpy", "pyvista", "rdkit"]
 PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=4.0.0, <5.0.0"
 
