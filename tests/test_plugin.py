@@ -64,7 +64,7 @@ def test_plugin_metadata():
     assert plugin.PLUGIN_VERSION == "0.4.2"
     assert plugin.PLUGIN_AUTHOR == "HiroYokoyama"
     assert plugin.PLUGIN_DEPENDENCIES == ["numpy", "pyvista", "rdkit"]
-    assert plugin.PLUGIN_TAGS == ["Structure", "Utility"]
+    assert plugin.PLUGIN_TAGS == ["Utility"]
     assert plugin.PLUGIN_DESCRIPTION.strip()
 
 
