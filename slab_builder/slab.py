@@ -232,13 +232,17 @@ def build_slab(
 
     atoms = []
     for atom, position in kept:
-        moved = position + offset
+        fract = cartesian_to_fractional(position + offset, slab_lattice)
+        # Straightening c slides the upper layers sideways, out past the a/b
+        # faces. Fold them back in-plane so the cell drawn and the atoms
+        # written agree; c is left alone, it already holds the vacuum.
+        fract[:2] = wrap_fractional(fract[:2])
         atoms.append(
             CellAtom(
                 label=atom.label,
                 element=atom.element,
-                fract=cartesian_to_fractional(moved, slab_lattice),
-                cart=moved,
+                fract=fract,
+                cart=fractional_to_cartesian(fract, slab_lattice),
                 occupancy=atom.occupancy,
             )
         )
