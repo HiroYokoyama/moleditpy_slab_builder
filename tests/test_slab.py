@@ -215,8 +215,9 @@ def test_slab_from_two_atom_cell_keeps_stoichiometry():
     assert all(atom.element == "Fe" for atom in slab.atoms)
 
 
-def test_slab_layers_are_clamped(simple_cubic):
-    assert len(sl.build_slab(simple_cubic, (0, 0, 1), layers=0).atoms) == 1
+def test_slab_layers_must_be_positive(simple_cubic):
+    with pytest.raises(ValueError, match="positive integer"):
+        sl.build_slab(simple_cubic, (0, 0, 1), layers=0)
 
 
 # -- CIF export ------------------------------------------------------------

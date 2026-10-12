@@ -11,6 +11,8 @@ from typing import List, Sequence, Tuple
 
 import numpy as np
 
+MAX_SLAB_ATOMS = 100_000
+
 from .cell_model import (
     Cell,
     CellAtom,
@@ -28,7 +30,11 @@ def normalize_miller(indices: Sequence[int]) -> Tuple[int, int, int]:
     The redundant third index of (hkil) satisfies i = -(h+k) and is dropped, so
     (1 0 -1 0) becomes (1 0 0).
     """
-    values = [int(value) for value in indices]
+    values = []
+    for value in indices:
+        if not np.isfinite(value) or int(value) != value:
+            raise ValueError("Miller indices must be finite integers.")
+        values.append(int(value))
     if len(values) == 4:
         h, k, i, l = values
         if i != -(h + k):
@@ -51,12 +57,14 @@ def normalize_miller(indices: Sequence[int]) -> Tuple[int, int, int]:
 
 def _ext_gcd(a: int, b: int) -> Tuple[int, int]:
     """Bezout coefficients (x, y) with a*x + b*y = gcd(a, b)."""
-    if b == 0:
-        return 1, 0
-    if a % b == 0:
-        return 0, 1
-    x, y = _ext_gcd(b, a % b)
-    return y, x - y * (a // b)
+    old_r, r = abs(a), abs(b)
+    old_x, x, old_y, y = 1, 0, 0, 1
+    while r:
+        quotient = old_r // r
+        old_r, r = r, old_r - quotient * r
+        old_x, x = x, old_x - quotient * x
+        old_y, y = y, old_y - quotient * y
+    return old_x * (-1 if a < 0 else 1), old_y * (-1 if b < 0 else 1)
 
 
 def surface_transformation(lattice: np.ndarray, miller: Sequence[int]) -> np.ndarray:
@@ -66,9 +74,9 @@ def surface_transformation(lattice: np.ndarray, miller: Sequence[int]) -> np.nda
     is a cell whose c axis stacks the surface.  Same construction as ASE's
     ``build.surface``.
     """
-    h, k, l = (int(value) for value in miller)
-    if (h, k, l) == (0, 0, 0):
-        raise ValueError("Miller indices cannot all be zero.")
+    h, k, l = normalize_miller(miller)
+    divisor = math.gcd(h, k, l)
+    h, k, l = h // divisor, k // divisor, l // divisor
 
     h0, k0, l0 = h == 0, k == 0, l == 0
     if (h0 and k0) or (h0 and l0) or (k0 and l0):
@@ -78,7 +86,10 @@ def surface_transformation(lattice: np.ndarray, miller: Sequence[int]) -> np.nda
             rows = [(0, 0, 1), (1, 0, 0), (0, 1, 0)]
         else:
             rows = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
-        return np.array(rows, dtype=int)
+        rows = np.array(rows, dtype=int)
+        if h + k + l < 0:
+            rows[1:] *= -1
+        return rows
 
     a1, a2, a3 = np.asarray(lattice, dtype=float)
     p, q = _ext_gcd(k, l)
@@ -118,11 +129,36 @@ def _retile(cell: Cell, transformation: np.ndarray) -> Cell:
 
     lattice = transformation @ np.asarray(cell.lattice, dtype=float)
     inverse = np.linalg.inv(transformation.astype(float))
+    if multiplicity == 1:
+        # A unimodular basis maps every original site to exactly one site.
+        # Wrapping replaces a cubic translation search and preserves mixed sites.
+        atoms = []
+        for atom in cell.atoms:
+            fract = wrap_fractional(np.asarray(atom.fract, dtype=float) @ inverse)
+            atoms.append(
+                CellAtom(
+                    atom.label,
+                    atom.element,
+                    fract,
+                    fractional_to_cartesian(fract, lattice),
+                    atom.occupancy,
+                )
+            )
+        lengths, angles = lattice_parameters(lattice)
+        return Cell(
+            cell.name,
+            lengths,
+            angles,
+            lattice,
+            tuple(atoms),
+            space_group=None,
+            source=cell.source,
+        )
     span = int(np.abs(transformation).sum()) + 1
 
     atoms: List[CellAtom] = []
-    seen: List[np.ndarray] = []
     for atom in cell.atoms:
+        seen: List[np.ndarray] = []
         base = np.asarray(atom.fract, dtype=float)
         for ia in range(-span, span + 1):
             for ib in range(-span, span + 1):
@@ -182,9 +218,32 @@ def build_slab(
     replaces the stacking vector with the surface normal, which is what a slab
     calculation normally wants.
     """
-    layers = max(1, int(layers))
-    vacuum = max(0.0, float(vacuum))
+    if not np.isfinite(layers) or int(layers) != layers or layers < 1:
+        raise ValueError("Layers must be a positive integer.")
+    layers = int(layers)
+    vacuum = float(vacuum)
+    if not math.isfinite(vacuum) or vacuum < 0 or not math.isfinite(float(shift)):
+        raise ValueError(
+            "Vacuum and termination shift must be finite; vacuum cannot be negative."
+        )
     shift = float(shift) % 1.0
+    lattice = np.asarray(cell.lattice, dtype=float)
+    if (
+        lattice.shape != (3, 3)
+        or not np.isfinite(lattice).all()
+        or np.linalg.matrix_rank(lattice) != 3
+        or not cell.atoms
+    ):
+        raise ValueError("A finite, nonsingular cell with atoms is required.")
+    if any(
+        np.asarray(atom.fract).shape != (3,) or not np.isfinite(atom.fract).all()
+        for atom in cell.atoms
+    ):
+        raise ValueError("Atom fractional coordinates must be finite 3-vectors.")
+    if (layers + 1) * len(cell.atoms) > MAX_SLAB_ATOMS:
+        raise ValueError(
+            f"Slab construction exceeds the {MAX_SLAB_ATOMS:,} atom limit."
+        )
 
     surface = _retile(cell, surface_transformation(cell.lattice, miller))
 
@@ -223,8 +282,10 @@ def build_slab(
         slab_lattice[2] = normal * (window + vacuum)
     else:
         direction = slab_lattice[2] / np.linalg.norm(slab_lattice[2])
-        slab_lattice[2] = direction * (window + vacuum) / max(
-            abs(float(np.dot(direction, normal))), 1e-12
+        slab_lattice[2] = (
+            direction
+            * (window + vacuum)
+            / max(abs(float(np.dot(direction, normal))), 1e-12)
         )
 
     heights = [float(np.dot(position, normal)) for _, position in kept]
@@ -273,5 +334,7 @@ def slab_thickness(cell: Cell) -> float:
     if norm < 1e-12 or not cell.atoms:
         return 0.0
     normal = normal / norm
-    heights = [float(np.dot(np.asarray(atom.cart, dtype=float), normal)) for atom in cell.atoms]
+    heights = [
+        float(np.dot(np.asarray(atom.cart, dtype=float), normal)) for atom in cell.atoms
+    ]
     return max(heights) - min(heights)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import math
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -86,7 +87,9 @@ class SlabBuilderDialog(QDialog):
         self.setWindowTitle(f"{PLUGIN_NAME} v{PLUGIN_VERSION}")
         self.resize(860, 700)
 
-        self.persistent_settings = persistent_settings if persistent_settings is not None else {}
+        self.persistent_settings = (
+            persistent_settings if persistent_settings is not None else {}
+        )
         self.get_cif_viewer = get_cif_viewer
         self.mark_modified = mark_modified
         self.context = context
@@ -141,8 +144,12 @@ class SlabBuilderDialog(QDialog):
         layout.addWidget(preview_row)
 
         buttons = QDialogButtonBox()
-        self.save_button = buttons.addButton("Save CIF...", QDialogButtonBox.ButtonRole.AcceptRole)
-        self.copy_button = buttons.addButton("Copy CIF", QDialogButtonBox.ButtonRole.ActionRole)
+        self.save_button = buttons.addButton(
+            "Save CIF...", QDialogButtonBox.ButtonRole.AcceptRole
+        )
+        self.copy_button = buttons.addButton(
+            "Copy CIF", QDialogButtonBox.ButtonRole.ActionRole
+        )
         buttons.addButton(QDialogButtonBox.StandardButton.Close)
         self.save_button.clicked.connect(self.save_cif)
         self.copy_button.clicked.connect(self.copy_cif)
@@ -176,7 +183,9 @@ class SlabBuilderDialog(QDialog):
         self.viewer_widget = QWidget()
         viewer_row = QHBoxLayout(self.viewer_widget)
         viewer_row.setContentsMargins(0, 0, 0, 0)
-        self.viewer_label = QLabel("Uses the structure currently open in the CIF Viewer panel.")
+        self.viewer_label = QLabel(
+            "Uses the structure currently open in the CIF Viewer panel."
+        )
         self.viewer_label.setWordWrap(True)
         reload_button = QPushButton("Reload")
         reload_button.clicked.connect(self.update_preview)
@@ -184,7 +193,9 @@ class SlabBuilderDialog(QDialog):
         viewer_row.addWidget(reload_button)
         form.addRow("", self.viewer_widget)
 
-        self.expand_check = QCheckBox("Expand the asymmetric unit with the symmetry operations")
+        self.expand_check = QCheckBox(
+            "Expand the asymmetric unit with the symmetry operations"
+        )
         self.expand_check.setChecked(True)
         form.addRow("", self.expand_check)
 
@@ -311,16 +322,24 @@ class SlabBuilderDialog(QDialog):
             self.cif_edit.setText(str(settings.get("cif_path", "") or ""))
             self.expand_check.setChecked(bool(settings.get("expand_symmetry", True)))
             self.primitive_check.setChecked(bool(settings.get("primitive_cell", False)))
-            self.auto_preview_check.setChecked(bool(settings.get("auto_preview_3d", True)))
+            self.auto_preview_check.setChecked(
+                bool(settings.get("auto_preview_3d", True))
+            )
             self.bonds_check.setChecked(bool(settings.get("preview_bonds", False)))
-            for spin, value in zip(self.miller_spins, settings.get("miller") or [0, 0, 1]):
+            for spin, value in zip(
+                self.miller_spins, settings.get("miller") or [0, 0, 1]
+            ):
                 spin.setValue(int(value))
-            self.four_index_check.setChecked(bool(settings.get("miller_four_index", False)))
+            self.four_index_check.setChecked(
+                bool(settings.get("miller_four_index", False))
+            )
             self.layers_spin.setValue(max(1, int(settings.get("layers", 6))))
             self.vacuum_spin.setValue(float(settings.get("vacuum", 15.0)))
             self.shift_spin.setValue(float(settings.get("shift", 0.0)))
             self.orthogonal_check.setChecked(bool(settings.get("orthogonal_c", True)))
-            for spin, value in zip(self.repeat_spins, settings.get("supercell") or [1, 1, 1]):
+            for spin, value in zip(
+                self.repeat_spins, settings.get("supercell") or [1, 1, 1]
+            ):
                 spin.setValue(max(1, int(value)))
         finally:
             self._updating = False
@@ -385,7 +404,10 @@ class SlabBuilderDialog(QDialog):
             shift=self.shift_spin.value(),
             orthogonal_c=self.orthogonal_check.isChecked(),
         )
-        return make_supercell(built, [spin.value() for spin in self.repeat_spins])
+        repeats = [spin.value() for spin in self.repeat_spins]
+        if len(built.atoms) * math.prod(repeats) > slab_module.MAX_SLAB_ATOMS:
+            raise ValueError("The slab supercell exceeds the 100,000 atom limit.")
+        return make_supercell(built, repeats)
 
     def update_preview(self, *_args) -> None:
         if self._updating:
@@ -401,6 +423,8 @@ class SlabBuilderDialog(QDialog):
             self._slab = self.build_slab()
         except (ValueError, OSError) as exc:
             self._slab = None
+            self.clear_3d_preview()
+            self._auto_previewed_key = None
             self.summary_label.setText(f"<b>{exc}</b>")
             self.preview.setPlainText(f"# {exc}")
             self.save_button.setEnabled(False)
@@ -434,16 +458,25 @@ class SlabBuilderDialog(QDialog):
         """
         if cell is None or not self.auto_preview_check.isChecked():
             return
-        key = (cell.name, len(cell.atoms), tuple(round(v, 6) for v in cell.lengths),
-               tuple(round(v, 6) for v in cell.angles), self.bonds_check.isChecked())
+        key = (
+            cell.name,
+            cell.lattice.tobytes(),
+            tuple(
+                (atom.element, atom.occupancy, atom.fract.tobytes())
+                for atom in cell.atoms
+            ),
+            self.bonds_check.isChecked(),
+        )
         if key == self._auto_previewed_key:
             return
-        self._auto_previewed_key = key
         try:
             self._preview_actors = cell_preview.show_cell(
-                self.context, cell, self._preview_actors,
+                self.context,
+                cell,
+                self._preview_actors,
                 show_bonds=self.bonds_check.isChecked(),
             )
+            self._auto_previewed_key = key
         except (ValueError, OSError, AttributeError, ImportError, RuntimeError) as exc:
             logging.debug("Automatic 3D preview skipped: %s", exc)
 
@@ -452,7 +485,9 @@ class SlabBuilderDialog(QDialog):
         try:
             cell = self._slab if self._slab is not None else self.build_slab()
             self._preview_actors = cell_preview.show_cell(
-                self.context, cell, self._preview_actors,
+                self.context,
+                cell,
+                self._preview_actors,
                 show_bonds=self.bonds_check.isChecked(),
             )
         except (ValueError, OSError, AttributeError, ImportError, RuntimeError) as exc:
@@ -463,6 +498,7 @@ class SlabBuilderDialog(QDialog):
         self._preview_actors = cell_preview.clear_cell_box(
             self.context, self._preview_actors
         )
+        self._auto_previewed_key = None
 
     def _browse_cif(self) -> None:  # pragma: no cover - file dialog
         path, _ = QFileDialog.getOpenFileName(
@@ -480,7 +516,9 @@ class SlabBuilderDialog(QDialog):
 
     def save_cif(self) -> None:
         if self._slab is None:
-            QMessageBox.warning(self, "Slab Builder", "There is no valid slab to write.")
+            QMessageBox.warning(
+                self, "Slab Builder", "There is no valid slab to write."
+            )
             return
         suggested = f"{self._slab.name}.cif"
         path, _ = QFileDialog.getSaveFileName(
@@ -492,7 +530,9 @@ class SlabBuilderDialog(QDialog):
             with open(path, "w", encoding="utf-8", newline="\n") as handle:
                 handle.write(write_cif(self._slab))
         except OSError as exc:
-            QMessageBox.critical(self, "Slab Builder", f"Could not write the file:\n{exc}")
+            QMessageBox.critical(
+                self, "Slab Builder", f"Could not write the file:\n{exc}"
+            )
             return
         QMessageBox.information(self, "Slab Builder", f"Wrote\n{os.path.abspath(path)}")
 
