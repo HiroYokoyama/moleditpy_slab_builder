@@ -14,7 +14,7 @@ PLUGIN_DESCRIPTION = (
 PLUGIN_CATEGORY = "Utility"
 PLUGIN_TAGS = ["Utility"]
 PLUGIN_DEPENDENCIES = ["numpy", "pyvista", "rdkit"]
-PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=5.0.0a1, <6.0.0"
+PLUGIN_SUPPORTED_MOLEDITPY_VERSION = ">=5.0.0, <6.0.0"
 
 SETTINGS_FILE = os.path.join(os.path.dirname(__file__), "settings.json")
 WINDOW_ID = "slab_builder_dialog"
