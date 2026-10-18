@@ -6,9 +6,9 @@ import logging
 import os
 import math
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
@@ -508,7 +508,7 @@ class SlabBuilderDialog(QDialog):
             self.cif_edit.setText(path)
 
     def copy_cif(self) -> None:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         clipboard = QApplication.clipboard()
         if clipboard is not None:
