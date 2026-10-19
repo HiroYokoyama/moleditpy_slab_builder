@@ -61,7 +61,7 @@ jobs:
 
       - name: Build release package
         run: |
-          cp README.md LICENSE slab_builder/
+          cp README.md LICENSE COPYING LICENSING.md slab_builder/
           zip -r "slab_builder_${VERSION}.zip" slab_builder/ \
             --exclude "*/__pycache__/*" "*/.git/*"
 

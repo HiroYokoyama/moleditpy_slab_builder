@@ -170,7 +170,7 @@ def test_marks_the_project_modified(qapp, tmp_path):
 
 
 def test_save_writes_a_cif(dialog, tmp_path, monkeypatch):
-    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
 
     target = tmp_path / "slab.cif"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
@@ -183,7 +183,7 @@ def test_save_writes_a_cif(dialog, tmp_path, monkeypatch):
 
 
 def test_save_is_cancellable(dialog, tmp_path, monkeypatch):
-    from PyQt6.QtWidgets import QFileDialog
+    from PySide6.QtWidgets import QFileDialog
 
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     before = sorted(path.name for path in tmp_path.iterdir())
@@ -192,7 +192,7 @@ def test_save_is_cancellable(dialog, tmp_path, monkeypatch):
 
 
 def test_save_without_a_slab_warns(qapp, monkeypatch):
-    from PyQt6.QtWidgets import QMessageBox
+    from PySide6.QtWidgets import QMessageBox
 
     seen = []
     monkeypatch.setattr(QMessageBox, "warning", lambda *a, **k: seen.append(a))
@@ -293,7 +293,7 @@ def test_a_drag_move_follows_the_same_rule(dialog):
 
 
 def test_saving_to_an_unwritable_path_reports_the_error(dialog, tmp_path, monkeypatch):
-    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
 
     monkeypatch.setattr(
         QFileDialog, "getSaveFileName", lambda *a, **k: (str(tmp_path / "missing" / "s.cif"), "")
@@ -305,7 +305,7 @@ def test_saving_to_an_unwritable_path_reports_the_error(dialog, tmp_path, monkey
 
 
 def test_saving_writes_the_cif(dialog, tmp_path, monkeypatch):
-    from PyQt6.QtWidgets import QFileDialog, QMessageBox
+    from PySide6.QtWidgets import QFileDialog, QMessageBox
 
     target = tmp_path / "slab.cif"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (str(target), ""))
@@ -315,7 +315,7 @@ def test_saving_writes_the_cif(dialog, tmp_path, monkeypatch):
 
 
 def test_cancelling_the_save_writes_nothing(dialog, monkeypatch):
-    from PyQt6.QtWidgets import QFileDialog
+    from PySide6.QtWidgets import QFileDialog
 
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     dialog.save_cif()
