@@ -1,0 +1,8 @@
+{
+  "package": "slab_builder",
+  "files": [
+    "cell_model.py",
+    "elements.py",
+    "cell_preview.py"
+  ]
+}

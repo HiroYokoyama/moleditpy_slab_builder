@@ -1,0 +1,19 @@
+{
+  "source": "slab_builder/__init__.py",
+  "title": "Slab Builder",
+  "package": "slab_builder",
+  "archive": "slab_builder_{version}.zip",
+  "assets": [
+    "slab_builder_{version}.zip"
+  ],
+  "include": [
+    "README.md",
+    "LICENSE",
+    "COPYING",
+    "LICENSING.md"
+  ],
+  "exclude": [
+    "*/__pycache__/*",
+    "*/.git/*"
+  ]
+}
