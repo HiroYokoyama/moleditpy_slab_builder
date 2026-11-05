@@ -237,6 +237,9 @@ class _FakeMime:
         return self._urls
 
 
+from PySide6.QtCore import Qt  # noqa: E402
+
+
 class _FakeDropEvent:
     def __init__(self, mime):
         self._mime = mime
@@ -246,7 +249,13 @@ class _FakeDropEvent:
     def mimeData(self):
         return self._mime
 
-    def acceptProposedAction(self):
+    def possibleActions(self):
+        return Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+
+    def setDropAction(self, action):
+        self.action = action
+
+    def accept(self):
         self.accepted = True
 
     def ignore(self):
@@ -324,3 +333,49 @@ def test_cancelling_the_save_writes_nothing(dialog, monkeypatch):
 def test_copying_the_cif_reaches_the_clipboard(dialog, qapp):
     dialog.copy_cif()
     assert "data_" in qapp.clipboard().text()
+
+
+from PySide6.QtCore import Qt  # noqa: E402
+
+
+COPY_OR_MOVE = Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+
+
+def _shift_event(kind, path, actions=COPY_OR_MOVE):
+    """A real Qt event with Shift held, the way Explorer asks for a move."""
+    from PySide6.QtCore import QMimeData, QPoint, QPointF, QUrl
+    from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
+
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(path))])
+    left, shift = Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ShiftModifier
+    if kind == "drop":
+        event = QDropEvent(QPointF(1, 1), actions, mime, left, shift)
+    elif kind == "move":
+        event = QDragMoveEvent(QPoint(1, 1), actions, mime, left, shift)
+    else:
+        event = QDragEnterEvent(QPoint(1, 1), actions, mime, left, shift)
+    # The event does not own its mime data, which has to outlive it.
+    event.keepalive = mime
+    return event
+
+
+def test_a_shift_drop_on_the_dialog_is_a_copy(dialog, tmp_path):
+    path = tmp_path / "x.cif"
+    enter = _shift_event("enter", path)
+    assert enter.proposedAction() == Qt.DropAction.MoveAction
+    dialog.dragEnterEvent(enter)
+    assert enter.dropAction() == Qt.DropAction.CopyAction
+    event = _shift_event("drop", path)
+    dialog.dropEvent(event)
+    assert event.isAccepted()
+    assert event.dropAction() == Qt.DropAction.CopyAction
+    assert dialog.cif_edit.text() == path.as_posix()
+
+
+def test_a_source_that_can_only_move_is_refused_by_the_dialog(dialog, tmp_path):
+    before = dialog.cif_edit.text()
+    event = _shift_event("drop", tmp_path / "x.cif", actions=Qt.DropAction.MoveAction)
+    dialog.dropEvent(event)
+    assert not event.isAccepted()
+    assert dialog.cif_edit.text() == before
