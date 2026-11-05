@@ -48,6 +48,21 @@ SOURCES = (SOURCE_CIF, SOURCE_VIEWER)
 CIF_SUFFIXES = (".cif", ".mmcif")
 
 
+def accept_drop_as_copy(event) -> bool:
+    """Accept a file drag as a copy. False, and refused, if the source cannot copy.
+
+    Never acceptProposedAction(): Shift during a drag from Explorer proposes a
+    move, and accepting one tells Explorer the file now lives here, so it removes
+    the original. A dropped file is only ever read.
+    """
+    if not event.possibleActions() & Qt.DropAction.CopyAction:
+        event.ignore()
+        return False
+    event.setDropAction(Qt.DropAction.CopyAction)
+    event.accept()
+    return True
+
+
 def dropped_cif_path(mime) -> str:
     """Local path of the first .cif in a drag, or "" when there is none."""
     if mime is None or not mime.hasUrls():
@@ -296,7 +311,7 @@ class SlabBuilderDialog(QDialog):
     def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt naming
         """Accept a CIF dropped anywhere on this dialog (never on the host)."""
         if dropped_cif_path(event.mimeData()):
-            event.acceptProposedAction()
+            accept_drop_as_copy(event)
         else:
             event.ignore()
 
@@ -308,8 +323,8 @@ class SlabBuilderDialog(QDialog):
         if not path:
             event.ignore()
             return
-        self.load_cif_path(path)
-        event.acceptProposedAction()
+        if accept_drop_as_copy(event):
+            self.load_cif_path(path)
 
     # -- settings ---------------------------------------------------------
 
